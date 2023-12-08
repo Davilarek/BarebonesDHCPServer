@@ -9,7 +9,8 @@
 
 #define PORT 67
 // #define PORT 3000
-#define BUFFER_SIZE 1024
+// #define BUFFER_SIZE 1024
+#define BUFFER_SIZE 600
 #include <time.h>
 #include "map.h"
 
@@ -23,9 +24,10 @@ unsigned int generateRandomHex()
     return rand() & 0xFFFFFFFF;
 }
 
-const char *ip_str = "192.168.1.2";
+// const char *ip_str = "192.168.1.2";
 // const char *serverIp = "192.168.1.1";
-const unsigned char serverIp[4] = {0xC0, 0xA8, 0x01, 0x01};
+// const unsigned char serverIp[4] = {0xC0, 0xA8, 0x01, 0x01};
+const unsigned char offered_subnet_base[4] = {0xC0, 0xA8, 0x01, 0x00};
 const unsigned char offered_subnet_mask[4] = {0xFF, 0xFF, 0xFF, 0x00};
 
 SimpleMap transactionIDsToMACs;
@@ -109,6 +111,12 @@ int addOption(char *buffer, int start, int optionType, char *values, int valuesL
 
 int main()
 {
+    unsigned char serverIp[4] = {
+        offered_subnet_base[0],
+        offered_subnet_base[1],
+        offered_subnet_base[2],
+        0x01,
+    };
     int sockfd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
@@ -338,11 +346,16 @@ int main()
         // continue;
         if (replyWithOffer == 1 && replyWithAck == 0)
         {
-            struct sockaddr_in fake_client_addr;
-            inet_pton(AF_INET, ip_str, &(fake_client_addr.sin_addr));
-
-            // Extracting the four octets
-            uint32_t proposedIP = fake_client_addr.sin_addr.s_addr;
+            // struct sockaddr_in fake_client_addr;
+            // inet_pton(AF_INET, ip_str, &(fake_client_addr.sin_addr));
+            // // Extracting the four octets
+            // uint32_t proposedIP = fake_client_addr.sin_addr.s_addr;
+            char proposedIP[4] = {
+                offered_subnet_base[0],
+                offered_subnet_base[1],
+                offered_subnet_base[2],
+                0x02,
+            };
 
             char responseBuffer[BUFFER_SIZE]; // uwaga niepotrzebnie duże użycie pamięci tutaj
             responseBuffer[0] = 0x02;         // bootreply OP
@@ -371,10 +384,14 @@ int main()
             responseBuffer[14] = (client_addr.sin_addr.s_addr >> 16) & 0xFF;
             responseBuffer[15] = (client_addr.sin_addr.s_addr >> 24) & 0xFF;
 
-            responseBuffer[16] = (proposedIP) & 0xFF; // adres ip proponowany przez serwer dhcp
-            responseBuffer[17] = (proposedIP >> 8) & 0xFF;
-            responseBuffer[18] = (proposedIP >> 16) & 0xFF;
-            responseBuffer[19] = (proposedIP >> 24) & 0xFF;
+            // responseBuffer[16] = (proposedIP) & 0xFF; // adres ip proponowany przez serwer dhcp
+            // responseBuffer[17] = (proposedIP >> 8) & 0xFF;
+            // responseBuffer[18] = (proposedIP >> 16) & 0xFF;
+            // responseBuffer[19] = (proposedIP >> 24) & 0xFF;
+            responseBuffer[16] = proposedIP[0];
+            responseBuffer[17] = proposedIP[1];
+            responseBuffer[18] = proposedIP[2];
+            responseBuffer[19] = proposedIP[3];
 
             if (strcmp(inet_ntoa(client_addr.sin_addr), "127.0.0.1"))
             {
