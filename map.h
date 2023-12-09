@@ -5,7 +5,7 @@
 
 typedef struct
 {
-    char key[50];
+    unsigned char key[50];
     // int value;
     unsigned char* value;
 } KeyValuePair;
@@ -17,7 +17,8 @@ typedef struct
 } SimpleMap;
 
 void initializeMap(SimpleMap *map);
-void insertKeyValuePair(SimpleMap *map, const char *key, unsigned char* value);
-unsigned char* getValueByKey(const SimpleMap *map, const char *key);
+void insertKeyValuePair(SimpleMap *map, const unsigned char *key, unsigned char* value);
+unsigned char* getValueByKey(const SimpleMap *map, const unsigned char *key);
+void removeByKey(SimpleMap *map, const unsigned char *key);
 
 #endif // MAP_H

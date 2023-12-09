@@ -6,6 +6,7 @@
 #include <netpacket/packet.h>
 #include <net/if.h>
 #include <netinet/if_ether.h>
+#include <pthread.h>
 
 #define PORT 67
 // #define PORT 3000
@@ -17,6 +18,7 @@
 // TODO: lista klientów
 // TODO: obsłużyć release i decline
 // TODO: pula adresów
+// TODO: zwalnianie dzierżaw
 
 unsigned int generateRandomHex()
 {
@@ -109,6 +111,16 @@ int addOption(char *buffer, int start, int optionType, char *values, int valuesL
 // void handle_client(int client_sock, struct sockaddr_in client_addr) {
 // }
 
+void *handle_leases()
+{
+    while (1)
+    {
+        // printf("test\n");
+        // sleep(5);
+    }
+    return NULL;
+}
+
 int main()
 {
     unsigned char serverIp[4] = {
@@ -143,6 +155,9 @@ int main()
     }
 
     initializeMap(&transactionIDsToMACs);
+
+    pthread_t leasesThread;
+    pthread_create(&leasesThread, NULL, handle_leases, NULL);
 
     while (1)
     {
@@ -399,9 +414,27 @@ int main()
                 fake_client_addr2.sin_family = AF_INET;
                 fake_client_addr2.sin_port = client_addr.sin_port;
                 // fake_client_addr2.sin_addr.s_addr = INADDR_BROADCAST;
-                inet_pton(AF_INET, "192.168.1.255", &(fake_client_addr2.sin_addr)); // broadcast tej sieci
+                // char formatted[32];
+                // int len = sprintf(formatted, "%d.%d.%d.%d", (int)offered_subnet_base[0], (int)offered_subnet_base[1], (int)offered_subnet_base[2], (int)0xFF) + 1;
+                unsigned char broadcast[4] = {
+                    offered_subnet_base[0],
+                    offered_subnet_base[1],
+                    offered_subnet_base[2],
+                    0xFF,
+                };
+                // char *cutFormatted = malloc(len * sizeof(int));
+                // for (size_t i = 0; i < len; i++)
+                // {
+                //     cutFormatted[i] = formatted[i];
+                // }
+                // inet_pton(AF_INET, "192.168.1.255", &(fake_client_addr2.sin_addr)); // broadcast tej sieci
+                // inet_pton(AF_INET, cutFormatted, &(fake_client_addr2.sin_addr)); // broadcast tej sieci
+                struct in_addr addr;
+                addr.s_addr = *((uint32_t *)broadcast);
+                fake_client_addr2.sin_addr = addr;
                 client_addr = fake_client_addr2;
                 client_addr_len = sizeof(client_addr);
+                // free(cutFormatted);
                 // client_addr = INADDR_BROADCAST;
             }
 
@@ -585,9 +618,11 @@ int main()
                 perror("Error sending response");
                 exit(EXIT_FAILURE);
             }
+
+            // removeByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray);
         }
     }
-
+    pthread_cancel(leasesThread);
     close(sockfd);
 
     return 0;
