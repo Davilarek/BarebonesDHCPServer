@@ -7,13 +7,22 @@ void initializeMap(SimpleMap *map)
     map->size = 0;
 }
 
-void insertKeyValuePair(SimpleMap *map, const unsigned char *key, void *value)
+void insertKeyValuePair(SimpleMap *map, const int key, void *value, int keyLen)
 {
     if (map->size < MAX_KEYS)
     {
         KeyValuePair pair;
-        strncpy(pair.key, key, sizeof(pair.key) - 1);
-        pair.key[sizeof(pair.key) - 1] = '\0';
+        // if (keyLen == -1)
+        // {
+        //     strncpy(pair.key, key, sizeof(pair.key) - 1);
+        //     pair.key[sizeof(pair.key) - 1] = '\0';
+        // }
+        // else
+        // {
+        //     strncpy(pair.key, key, keyLen);
+        //     pair.key[keyLen] = '\0';
+        // }
+        pair.key = key;
         pair.value = value;
 
         map->data[map->size++] = pair;
@@ -24,24 +33,26 @@ void insertKeyValuePair(SimpleMap *map, const unsigned char *key, void *value)
     }
 }
 
-void *getValueByKey(const SimpleMap *map, const unsigned char *key)
+void *getValueByKey(const SimpleMap *map, const int key)
 {
     for (int i = 0; i < map->size; ++i)
     {
-        if (strcmp(map->data[i].key, key) == 0)
+        // if (strcmp(map->data[i].key, key) == 0)
+        if (map->data[i].key - key == 0)
         {
             return map->data[i].value;
         }
     }
 
-    return "";
+    return NULL;
 }
 
-void removeByKey(SimpleMap *map, const unsigned char *key)
+void removeByKey(SimpleMap *map, const int key)
 {
     for (int i = 0; i < map->size; ++i)
     {
-        if (strcmp(map->data[i].key, key) == 0)
+        // if (strcmp(map->data[i].key, key) == 0)
+        if (map->data[i].key - key == 0)
         {
             for (int j = i; j < map->size - 1; ++j)
             {
@@ -52,5 +63,5 @@ void removeByKey(SimpleMap *map, const unsigned char *key)
         }
     }
 
-    // printf("not found");
+    printf("not found");
 }

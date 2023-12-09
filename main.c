@@ -65,6 +65,7 @@ enum DHCP_Options
     VendorClassId = 60,
     SubnetMask = 1,
     ServerID = 54,
+    IPAdressLeaseTime = 51,
 };
 
 enum DHCP_MessageTypes
@@ -117,8 +118,89 @@ void *handle_leases()
     {
         // printf("test\n");
         // sleep(5);
+        // if ()
     }
     return NULL;
+}
+
+struct DHCP_Lease
+{
+    unsigned char MAC_addr[6];
+    unsigned char IP_addr[4];
+    int duration;
+    long start;
+};
+
+// struct DHCP_Lease clients[128];
+SimpleMap clients;
+int ip_range[2] = {
+    2,
+    254,
+};
+
+pthread_mutex_t leaseMutex = PTHREAD_MUTEX_INITIALIZER;
+
+int chooseIp()
+{
+    // for (size_t j = 0; j < clients.size; j++)
+    // {
+    //     // pthread_mutex_lock(&leaseMutex);
+    //     for (size_t i = ip_range[0]; i < ip_range[1]; i++)
+    //     {
+    //         if (((struct DHCP_Lease *)clients.data[i].value)->IP_addr[4] == i)
+    //         {
+    //             continue;
+    //         }
+    //         return
+    //     }
+    //     // pthread_mutex_unlock(&leaseMutex);
+    // }
+    // int minRange = ip_range[0], maxRange = ip_range[1];
+    // for (size_t i = minRange; i <= maxRange; ++i)
+    // {
+    //     int isOccupied = 0;
+    //     for (size_t j = 0; j < clients.size; ++j)
+    //     {
+    //         if (((struct DHCP_Lease *)clients.data[j].value)->IP_addr[3] == i)
+    //         {
+    //             isOccupied = 1;
+    //             break;
+    //         }
+    //     }
+    //     if (!(isOccupied == 1))
+    //     {
+    //         return i;
+    //     }
+    // }
+    // return -1;
+
+    int usedOctets[256];
+    memset(usedOctets, 0, sizeof(usedOctets));
+    int minRange = ip_range[0], maxRange = ip_range[1];
+    for (int i = 0; i < clients.size; i++)
+    {
+        void *val = clients.data[i].value;
+        struct DHCP_Lease *lease = ((struct DHCP_Lease *)(val));
+        // unsigned char ip[4];
+        // for (int j = 0; j < 4; j++)
+        // {
+        //     ip[j] = lease->IP_addr[j];
+        // }
+        // usedOctets[ip[3]]++;
+        usedOctets[lease->IP_addr[3]]++;
+    }
+
+    int availableOctet = -1;
+    for (int i = minRange; i <= maxRange; i++)
+    {
+        if (usedOctets[i] == 0)
+        {
+            availableOctet = i;
+            break;
+        }
+    }
+
+    return availableOctet;
 }
 
 int main()
@@ -155,6 +237,7 @@ int main()
     }
 
     initializeMap(&transactionIDsToMACs);
+    initializeMap(&clients);
 
     pthread_t leasesThread;
     pthread_create(&leasesThread, NULL, handle_leases, NULL);
@@ -179,11 +262,19 @@ int main()
             buffer[5],
             buffer[6],
             buffer[7],
+            // '\0',
+        };
+        unsigned char combinedTransactionIdAsCharArray[4] = {
+            buffer[4],
+            buffer[5],
+            buffer[6],
+            buffer[7],
+            // '\0',
         };
         // unsigned int combinedTransactionId = combineBytes(transactionId, 4);
         // unsigned char combinedTransactionIdAsCharArray[8];
         // intToHex(combinedTransactionId, combinedTransactionIdAsCharArray);
-        unsigned char* combinedTransactionIdAsCharArray = transactionId;
+        // unsigned char *combinedTransactionIdAsCharArray = transactionId;
 
         char requestedIP[4];
 
@@ -263,7 +354,8 @@ int main()
                 MAC_octets[i] = (unsigned char)buffer[28 + i]; // end at 33
                 // printf("MAC_octets end at %d\n", 28 + i);
             }
-            insertKeyValuePair(&transactionIDsToMACs, combinedTransactionIdAsCharArray, (unsigned char *)MAC_octets);
+            int combinedTransactionIdAsInt = combinedTransactionIdAsCharArray[0] + combinedTransactionIdAsCharArray[1] + combinedTransactionIdAsCharArray[2] + combinedTransactionIdAsCharArray[3];
+            insertKeyValuePair(&transactionIDsToMACs, combinedTransactionIdAsInt, (unsigned char *)MAC_octets, 4);
 
             unsigned char MAC_octets_padding[10];
             for (int i = 0; i < 10; ++i)
@@ -370,7 +462,8 @@ int main()
                 offered_subnet_base[0],
                 offered_subnet_base[1],
                 offered_subnet_base[2],
-                0x02,
+                // 0x02,
+                chooseIp(),
             };
 
             char responseBuffer[BUFFER_SIZE]; // uwaga niepotrzebnie duże użycie pamięci tutaj
@@ -449,7 +542,8 @@ int main()
             responseBuffer[26] = 0x00;
             responseBuffer[27] = 0x00;
 
-            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
+            int combinedTransactionIdAsInt = combinedTransactionIdAsCharArray[0] + combinedTransactionIdAsCharArray[1] + combinedTransactionIdAsCharArray[2] + combinedTransactionIdAsCharArray[3];
+            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsInt); // adres MAC naszego klienta
             responseBuffer[28] = targetMAC[0];
             responseBuffer[29] = targetMAC[1];
             responseBuffer[30] = targetMAC[2];
@@ -488,7 +582,9 @@ int main()
             // addOption(responseBuffer, 243, SubnetMask, offered_subnet_mask, 4);
             int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
-            int finalEnd = serverIdEnd;
+            char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
+            int finalEnd = leaseTimeEnd;
 
             // responseBuffer[243] = End; // koniec odpowiedzi
             // responseBuffer[249] = End; // koniec odpowiedzi
@@ -545,8 +641,19 @@ int main()
             fake_client_addr2.sin_family = AF_INET;
             fake_client_addr2.sin_port = client_addr.sin_port;
             // fake_client_addr2.sin_addr.s_addr = INADDR_BROADCAST;
-            inet_pton(AF_INET, requestedIP, &(fake_client_addr2.sin_addr));
+            // inet_pton(AF_INET, requestedIP, &(fake_client_addr2.sin_addr));
+            struct in_addr addr;
+            unsigned char broadcast[4] = {
+                offered_subnet_base[0],
+                offered_subnet_base[1],
+                offered_subnet_base[2],
+                0xFF,
+            };
+            addr.s_addr = *((uint32_t *)broadcast);
+            fake_client_addr2.sin_addr = addr;
             client_addr = fake_client_addr2;
+            printf("%s\n", inet_ntoa(client_addr.sin_addr));
+            // client_addr = fake_client_addr2;
             client_addr_len = sizeof(client_addr);
             // client_addr = INADDR_BROADCAST;
 
@@ -560,7 +667,8 @@ int main()
             responseBuffer[26] = 0x00;
             responseBuffer[27] = 0x00;
 
-            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
+            int combinedTransactionIdAsInt = combinedTransactionIdAsCharArray[0] + combinedTransactionIdAsCharArray[1] + combinedTransactionIdAsCharArray[2] + combinedTransactionIdAsCharArray[3];
+            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsInt); // adres MAC naszego klienta
             responseBuffer[28] = targetMAC[0];
             responseBuffer[29] = targetMAC[1];
             responseBuffer[30] = targetMAC[2];
@@ -605,7 +713,9 @@ int main()
             int messageTypeEnd = addOption(responseBuffer, 240, MessageType, (char[]){Ack}, 1); // dodajemy opcje ack
             int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
-            int finalEnd = serverIdEnd;
+            char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
+            int finalEnd = leaseTimeEnd;
 
             responseBuffer[finalEnd] = End; // koniec odpowiedzi
 
@@ -620,7 +730,31 @@ int main()
                 exit(EXIT_FAILURE);
             }
 
-            // removeByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray);
+            removeByKey(&transactionIDsToMACs, combinedTransactionIdAsInt);
+
+            struct DHCP_Lease lease;
+            // lease.IP_addr = requestedIP;
+            // lease.MAC_addr = targetMAC;
+            for (size_t i = 0; i < 4; i++)
+            {
+                lease.IP_addr[i] = requestedIP[i];
+            }
+            for (size_t i = 0; i < 6; i++)
+            {
+                lease.MAC_addr[i] = targetMAC[i];
+            }
+            lease.start = time(NULL);
+            lease.duration = 10;
+            // targetMAC[6] = clients.size;
+            pthread_mutex_lock(&leaseMutex);
+            int offset = clients.size > 0 ? (clients.size + 1) : 1;
+            int targetMAC_asInt = (targetMAC[0] + targetMAC[1] + targetMAC[2] + targetMAC[3] + targetMAC[4] + targetMAC[5]) * offset;
+            void *val = getValueByKey(&clients, targetMAC_asInt);
+            // if (val == NULL)
+            insertKeyValuePair(&clients, targetMAC_asInt, &lease, 6);
+            // else
+            // ((struct DHCP_Lease *)val)->start = time(NULL);
+            pthread_mutex_unlock(&leaseMutex);
         }
     }
     pthread_join(leasesThread, NULL);
