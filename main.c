@@ -180,9 +180,10 @@ int main()
             buffer[6],
             buffer[7],
         };
-        unsigned int combinedTransactionId = combineBytes(transactionId, 4);
-        unsigned char combinedTransactionIdAsCharArray[8];
-        intToHex(combinedTransactionId, combinedTransactionIdAsCharArray);
+        // unsigned int combinedTransactionId = combineBytes(transactionId, 4);
+        // unsigned char combinedTransactionIdAsCharArray[8];
+        // intToHex(combinedTransactionId, combinedTransactionIdAsCharArray);
+        unsigned char* combinedTransactionIdAsCharArray = transactionId;
 
         char requestedIP[4];
 
@@ -262,7 +263,7 @@ int main()
                 MAC_octets[i] = (unsigned char)buffer[28 + i]; // end at 33
                 // printf("MAC_octets end at %d\n", 28 + i);
             }
-            insertKeyValuePair(&transactionIDsToMACs, combinedTransactionIdAsCharArray, MAC_octets);
+            insertKeyValuePair(&transactionIDsToMACs, combinedTransactionIdAsCharArray, (unsigned char *)MAC_octets);
 
             unsigned char MAC_octets_padding[10];
             for (int i = 0; i < 10; ++i)
@@ -448,7 +449,7 @@ int main()
             responseBuffer[26] = 0x00;
             responseBuffer[27] = 0x00;
 
-            unsigned char *targetMAC = getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
+            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
             responseBuffer[28] = targetMAC[0];
             responseBuffer[29] = targetMAC[1];
             responseBuffer[30] = targetMAC[2];
@@ -499,7 +500,7 @@ int main()
             {
                 responseBuffer[i] = 0;
             }
-
+            printf("sending %d\n", responseBuffer[242]);
             if (sendto(sockfd, responseBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, client_addr_len) == -1)
             {
                 perror("Error sending response");
@@ -559,7 +560,7 @@ int main()
             responseBuffer[26] = 0x00;
             responseBuffer[27] = 0x00;
 
-            unsigned char *targetMAC = getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
+            unsigned char *targetMAC = (unsigned char *)getValueByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray); // adres MAC naszego klienta
             responseBuffer[28] = targetMAC[0];
             responseBuffer[29] = targetMAC[1];
             responseBuffer[30] = targetMAC[2];
@@ -612,7 +613,7 @@ int main()
             {
                 responseBuffer[i] = 0;
             }
-
+            printf("sending %d\n", responseBuffer[242]);
             if (sendto(sockfd, responseBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, client_addr_len) == -1)
             {
                 perror("Error sending response");
@@ -622,7 +623,7 @@ int main()
             // removeByKey(&transactionIDsToMACs, combinedTransactionIdAsCharArray);
         }
     }
-    pthread_cancel(leasesThread);
+    pthread_join(leasesThread, NULL);
     close(sockfd);
 
     return 0;

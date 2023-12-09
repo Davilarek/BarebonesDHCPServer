@@ -7,7 +7,7 @@ void initializeMap(SimpleMap *map)
     map->size = 0;
 }
 
-void insertKeyValuePair(SimpleMap *map, const unsigned char *key, unsigned char* value)
+void insertKeyValuePair(SimpleMap *map, const unsigned char *key, void *value)
 {
     if (map->size < MAX_KEYS)
     {
@@ -24,7 +24,7 @@ void insertKeyValuePair(SimpleMap *map, const unsigned char *key, unsigned char*
     }
 }
 
-unsigned char* getValueByKey(const SimpleMap *map, const unsigned char *key)
+void *getValueByKey(const SimpleMap *map, const unsigned char *key)
 {
     for (int i = 0; i < map->size; ++i)
     {
