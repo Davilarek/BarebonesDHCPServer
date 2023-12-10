@@ -102,6 +102,7 @@ int isValidOption(int opt)
     case VendorClassId:
     case SubnetMask:
     case ServerID:
+    case IPAdressLeaseTime:
         return 1;
     default:
         return 0;
