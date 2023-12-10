@@ -14,7 +14,7 @@ typedef struct
 
 typedef struct
 {
-    KeyValuePair data[MAX_KEYS];
+    KeyValuePair* data[MAX_KEYS];
     int size;
 } SimpleMap;
 

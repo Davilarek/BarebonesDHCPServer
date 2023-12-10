@@ -1,6 +1,7 @@
 #include "map.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 void initializeMap(SimpleMap *map)
 {
@@ -11,7 +12,7 @@ void insertKeyValuePair(SimpleMap *map, const int key, void *value, int keyLen)
 {
     if (map->size < MAX_KEYS)
     {
-        KeyValuePair pair;
+        KeyValuePair* pair = malloc(sizeof(KeyValuePair));
         // if (keyLen == -1)
         // {
         //     strncpy(pair.key, key, sizeof(pair.key) - 1);
@@ -22,8 +23,8 @@ void insertKeyValuePair(SimpleMap *map, const int key, void *value, int keyLen)
         //     strncpy(pair.key, key, keyLen);
         //     pair.key[keyLen] = '\0';
         // }
-        pair.key = key;
-        pair.value = value;
+        pair->key = key;
+        pair->value = value;
 
         map->data[map->size++] = pair;
     }
@@ -38,9 +39,9 @@ void *getValueByKey(const SimpleMap *map, const int key)
     for (int i = 0; i < map->size; ++i)
     {
         // if (strcmp(map->data[i].key, key) == 0)
-        if (map->data[i].key - key == 0)
+        if (map->data[i]->key - key == 0)
         {
-            return map->data[i].value;
+            return map->data[i]->value;
         }
     }
 
@@ -52,13 +53,14 @@ void removeByKey(SimpleMap *map, const int key)
     for (int i = 0; i < map->size; ++i)
     {
         // if (strcmp(map->data[i].key, key) == 0)
-        if (map->data[i].key - key == 0)
+        if (map->data[i]->key - key == 0)
         {
             for (int j = i; j < map->size - 1; ++j)
             {
                 map->data[j] = map->data[j + 1];
             }
             map->size--;
+            free(map->data[i]);
             return;
         }
     }
