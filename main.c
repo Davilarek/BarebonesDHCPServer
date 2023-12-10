@@ -456,7 +456,7 @@ int main()
             */
 
             // int offset = 0;
-            unsigned char* MAC_octets = malloc(6 * sizeof(char));
+            unsigned char *MAC_octets = malloc(6 * sizeof(char));
             for (int i = 0; i < 6; ++i)
             {
                 // sprintf(MAC_octets, "%02x", (unsigned char)buffer[28 + i]);
@@ -729,6 +729,7 @@ int main()
                 perror("Error sending response");
                 exit(EXIT_FAILURE);
             }
+            continue;
         }
         if (replyWithAck == 1 && replyWithOffer == 0)
         {
@@ -900,7 +901,11 @@ int main()
             // // ((struct DHCP_Lease *)val)->start = time(NULL);
             // pthread_mutex_unlock(&leaseMutex);
             addLease(lease);
+            continue;
         }
+        printf("removing leftover transaction id\n");
+        int combinedTransactionIdAsInt = combinedTransactionIdAsCharArray[0] + combinedTransactionIdAsCharArray[1] + combinedTransactionIdAsCharArray[2] + combinedTransactionIdAsCharArray[3];
+        removeByKey(&transactionIDsToMACs, combinedTransactionIdAsInt);
     }
     // pthread_join(leasesThread, NULL);
     // close(sockfd);
