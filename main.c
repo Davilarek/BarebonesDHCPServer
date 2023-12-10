@@ -128,7 +128,7 @@ typedef struct
     long start;
     int valid;
     // char hostName[512];
-    char* hostName;
+    char *hostName;
 } DHCP_Lease;
 
 DHCP_Lease clients[128];
@@ -261,41 +261,41 @@ int main()
         offered_subnet_base[2],
         0x01,
     };
-    #ifndef _WIN32
+#ifndef _WIN32
     int sockfd;
-    #else
+#else
     SOCKET sockfd;
     WSADATA wsaData;
-    #endif
+#endif
     struct sockaddr_in server_addr, client_addr;
-    #ifndef _WIN32
+#ifndef _WIN32
     socklen_t client_addr_len = sizeof(client_addr);
-    #else
+#else
     int client_addr_len = sizeof(client_addr);
-    #endif
+#endif
     char buffer[BUFFER_SIZE];
 
-    #ifdef _WIN32
+#ifdef _WIN32
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
         perror("Error initializing Winsock");
         exit(EXIT_FAILURE);
     }
-    #endif
+#endif
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
     {
         perror("Error creating socket");
-        #ifdef _WIN32
+#ifdef _WIN32
         WSACleanup();
-        #endif
+#endif
         exit(EXIT_FAILURE);
     }
 
-    #ifndef _WIN32
+#ifndef _WIN32
     int broadcastEnable = 1;
     int ret = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable));
-    #endif
+#endif
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
