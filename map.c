@@ -66,5 +66,5 @@ void removeByKey(SimpleMap *map, const int key)
         }
     }
 
-    printf("not found");
+    printf("not found\n");
 }
