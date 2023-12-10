@@ -2,10 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifndef _WIN32
 #include <arpa/inet.h>
+#else
+#include <winsock2.h>
+#include <stdint.h>
+#endif
+#ifndef _WIN32
 #include <netpacket/packet.h>
 #include <net/if.h>
 #include <netinet/if_ether.h>
+#endif
 #include <pthread.h>
 
 #define PORT 67
@@ -254,19 +261,41 @@ int main()
         offered_subnet_base[2],
         0x01,
     };
+    #ifndef _WIN32
     int sockfd;
+    #else
+    SOCKET sockfd;
+    WSADATA wsaData;
+    #endif
     struct sockaddr_in server_addr, client_addr;
+    #ifndef _WIN32
     socklen_t client_addr_len = sizeof(client_addr);
+    #else
+    int client_addr_len = sizeof(client_addr);
+    #endif
     char buffer[BUFFER_SIZE];
+
+    #ifdef _WIN32
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        perror("Error initializing Winsock");
+        exit(EXIT_FAILURE);
+    }
+    #endif
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
     {
         perror("Error creating socket");
+        #ifdef _WIN32
+        WSACleanup();
+        #endif
         exit(EXIT_FAILURE);
     }
 
+    #ifndef _WIN32
     int broadcastEnable = 1;
     int ret = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable));
+    #endif
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
