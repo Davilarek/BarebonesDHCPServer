@@ -12,6 +12,7 @@
 // #define PORT 3000
 // #define BUFFER_SIZE 1024
 #define BUFFER_SIZE 600
+#define LEASE_TIME 600
 #include <time.h>
 #include "map.h"
 
@@ -112,6 +113,21 @@ int addOption(char *buffer, int start, int optionType, char *values, int valuesL
 // void handle_client(int client_sock, struct sockaddr_in client_addr) {
 // }
 
+typedef struct
+{
+    unsigned char MAC_addr[6];
+    unsigned char IP_addr[4];
+    int duration;
+    long start;
+    int valid;
+    // char hostName[512];
+    char* hostName;
+} DHCP_Lease;
+
+DHCP_Lease clients[128];
+int clientsLen = 0;
+pthread_mutex_t leaseMutex = PTHREAD_MUTEX_INITIALIZER;
+
 void *handle_leases()
 {
     while (1)
@@ -119,26 +135,34 @@ void *handle_leases()
         // printf("test\n");
         // sleep(5);
         // if ()
+        for (size_t i = 0; i < clientsLen; i++)
+        {
+            pthread_mutex_lock(&leaseMutex);
+            DHCP_Lease lease = clients[i];
+            if (time(NULL) == lease.start + lease.duration)
+            {
+                printf("lease expired for %d.%s: %d\n", i, lease.hostName, lease.IP_addr[3]);
+                lease.valid = 0;
+                clients[i] = lease;
+
+                for (int j = i; j < clientsLen - 1; ++j)
+                {
+                    clients[j] = clients[j + 1];
+                }
+                clientsLen--;
+            }
+            pthread_mutex_unlock(&leaseMutex);
+        }
+        sleep(1);
     }
     return NULL;
 }
 
-struct DHCP_Lease
-{
-    unsigned char MAC_addr[6];
-    unsigned char IP_addr[4];
-    int duration;
-    long start;
-};
-
-// struct DHCP_Lease clients[128];
-SimpleMap clients;
+// SimpleMap clients;
 int ip_range[2] = {
     2,
     254,
 };
-
-pthread_mutex_t leaseMutex = PTHREAD_MUTEX_INITIALIZER;
 
 int chooseIp()
 {
@@ -177,17 +201,19 @@ int chooseIp()
     int usedOctets[256];
     memset(usedOctets, 0, sizeof(usedOctets));
     int minRange = ip_range[0], maxRange = ip_range[1];
-    for (int i = 0; i < clients.size; i++)
+    for (int i = 0; i < clientsLen; i++)
     {
-        void *val = clients.data[i].value;
-        struct DHCP_Lease *lease = ((struct DHCP_Lease *)(val));
+        // void *val = clients[i];
+        // DHCP_Lease* lease = ((DHCP_Lease*)(val));
+        DHCP_Lease lease = clients[i];
         // unsigned char ip[4];
         // for (int j = 0; j < 4; j++)
         // {
         //     ip[j] = lease->IP_addr[j];
         // }
         // usedOctets[ip[3]]++;
-        usedOctets[lease->IP_addr[3]]++;
+        if (lease.valid == 1)
+            usedOctets[lease.IP_addr[3]]++;
     }
 
     int availableOctet = -1;
@@ -201,6 +227,23 @@ int chooseIp()
     }
 
     return availableOctet;
+}
+
+void addLease(DHCP_Lease lease)
+{
+    // unsigned char *targetMAC = lease.MAC_addr;
+    // int offset = clients.size > 0 ? (clients.size + 1) : 1;
+    // int targetMAC_asInt = (targetMAC[0] + targetMAC[1] + targetMAC[2] + targetMAC[3] + targetMAC[4] + targetMAC[5]) * offset;
+    // void *val = getValueByKey(&clients, targetMAC_asInt);
+    // // if (val == NULL)
+    // pthread_mutex_lock(&leaseMutex);
+    // insertKeyValuePair(&clients, targetMAC_asInt, &lease, 6);
+    // pthread_mutex_unlock(&leaseMutex);
+    pthread_mutex_lock(&leaseMutex);
+    clients[clientsLen] = lease;
+    clientsLen++;
+    printf("lease added\n");
+    pthread_mutex_unlock(&leaseMutex);
 }
 
 int main()
@@ -277,6 +320,7 @@ int main()
         // unsigned char *combinedTransactionIdAsCharArray = transactionId;
 
         char requestedIP[4];
+        char requestedHostname[512];
 
         if (buffer[0] == 0x01)
         {
@@ -434,6 +478,12 @@ int main()
                     {
                         requestedIP[j] = currentSetting;
                     }
+                    if (current == HostName)
+                    {
+                        requestedHostname[j] = currentSetting;
+                        if (j == currentLen - 1)
+                            requestedHostname[j + 1] = '\0';
+                    }
                 }
                 i += toSkip;
             }
@@ -582,7 +632,13 @@ int main()
             // addOption(responseBuffer, 243, SubnetMask, offered_subnet_mask, 4);
             int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
-            char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            // char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            char leaseTime[4] = {
+                (LEASE_TIME >> 24) & 0xFF,
+                (LEASE_TIME >> 16) & 0xFF,
+                (LEASE_TIME >> 8) & 0xFF,
+                LEASE_TIME & 0xFF,
+            };
             int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
             int finalEnd = leaseTimeEnd;
 
@@ -713,7 +769,13 @@ int main()
             int messageTypeEnd = addOption(responseBuffer, 240, MessageType, (char[]){Ack}, 1); // dodajemy opcje ack
             int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
-            char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            // char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
+            char leaseTime[4] = {
+                (LEASE_TIME >> 24) & 0xFF,
+                (LEASE_TIME >> 16) & 0xFF,
+                (LEASE_TIME >> 8) & 0xFF,
+                LEASE_TIME & 0xFF,
+            };
             int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
             int finalEnd = leaseTimeEnd;
 
@@ -731,8 +793,10 @@ int main()
             }
 
             removeByKey(&transactionIDsToMACs, combinedTransactionIdAsInt);
+            // memset(0, transactionIDsToMACs.data, MAX_KEYS);
+            initializeMap(&transactionIDsToMACs);
 
-            struct DHCP_Lease lease;
+            DHCP_Lease lease;
             // lease.IP_addr = requestedIP;
             // lease.MAC_addr = targetMAC;
             for (size_t i = 0; i < 4; i++)
@@ -744,17 +808,21 @@ int main()
                 lease.MAC_addr[i] = targetMAC[i];
             }
             lease.start = time(NULL);
-            lease.duration = 10;
+            lease.duration = LEASE_TIME;
+            lease.valid = 1;
+            lease.hostName = requestedHostname;
             // targetMAC[6] = clients.size;
-            pthread_mutex_lock(&leaseMutex);
-            int offset = clients.size > 0 ? (clients.size + 1) : 1;
-            int targetMAC_asInt = (targetMAC[0] + targetMAC[1] + targetMAC[2] + targetMAC[3] + targetMAC[4] + targetMAC[5]) * offset;
-            void *val = getValueByKey(&clients, targetMAC_asInt);
-            // if (val == NULL)
-            insertKeyValuePair(&clients, targetMAC_asInt, &lease, 6);
-            // else
-            // ((struct DHCP_Lease *)val)->start = time(NULL);
-            pthread_mutex_unlock(&leaseMutex);
+
+            // pthread_mutex_lock(&leaseMutex);
+            // int offset = clients.size > 0 ? (clients.size + 1) : 1;
+            // int targetMAC_asInt = (targetMAC[0] + targetMAC[1] + targetMAC[2] + targetMAC[3] + targetMAC[4] + targetMAC[5]) * offset;
+            // void *val = getValueByKey(&clients, targetMAC_asInt);
+            // // if (val == NULL)
+            // insertKeyValuePair(&clients, targetMAC_asInt, &lease, 6);
+            // // else
+            // // ((struct DHCP_Lease *)val)->start = time(NULL);
+            // pthread_mutex_unlock(&leaseMutex);
+            addLease(lease);
         }
     }
     pthread_join(leasesThread, NULL);
