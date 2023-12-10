@@ -309,7 +309,7 @@ int main()
     }
 
     initializeMap(&transactionIDsToMACs);
-    initializeMap(&clients);
+    // initializeMap(&clients);
 
     pthread_t leasesThread;
     pthread_create(&leasesThread, NULL, handle_leases, NULL);
