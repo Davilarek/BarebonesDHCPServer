@@ -150,7 +150,7 @@ void *handle_leases()
             DHCP_Lease lease = clients[i];
             if (time(NULL) == lease.start + lease.duration)
             {
-                printf("lease expired for %d.%s: %d\n", i, lease.hostName, lease.IP_addr[3]);
+                printf("%d: lease expired for %d.%s: %d\n", time(NULL), i, lease.hostName, lease.IP_addr[3]);
                 lease.valid = 0;
                 clients[i] = lease;
 
@@ -251,7 +251,7 @@ void addLease(DHCP_Lease lease)
     pthread_mutex_lock(&leaseMutex);
     clients[clientsLen] = lease;
     clientsLen++;
-    printf("lease added\n");
+    printf("%d: lease added\n", time(NULL));
     pthread_mutex_unlock(&leaseMutex);
 }
 
