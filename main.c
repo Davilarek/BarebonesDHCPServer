@@ -659,7 +659,13 @@ int main()
             // responseBuffer[242] = Offer;
             int messageTypeEnd = addOption(responseBuffer, 240, MessageType, (char[]){Offer}, 1); // dodajemy opcje oferty
             // addOption(responseBuffer, 243, SubnetMask, offered_subnet_mask, 4);
-            int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
+            char offeredSubnetMaskCopy[4] = {
+                offered_subnet_mask[0],
+                offered_subnet_mask[1],
+                offered_subnet_mask[2],
+                offered_subnet_mask[3],
+            };
+            int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offeredSubnetMaskCopy, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
             // char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
             char leaseTime[4] = {
@@ -796,7 +802,13 @@ int main()
             //     exit(EXIT_FAILURE);
             // }
             int messageTypeEnd = addOption(responseBuffer, 240, MessageType, (char[]){Ack}, 1); // dodajemy opcje ack
-            int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offered_subnet_mask, 4);
+            char offeredSubnetMaskCopy[4] = {
+                offered_subnet_mask[0],
+                offered_subnet_mask[1],
+                offered_subnet_mask[2],
+                offered_subnet_mask[3],
+            };
+            int subnetMaskEnd = addOption(responseBuffer, messageTypeEnd, SubnetMask, offeredSubnetMaskCopy, 4);
             int serverIdEnd = addOption(responseBuffer, subnetMaskEnd, ServerID, serverIp, 4);
             // char leaseTime[4] = {0x01, 0xE1, 0x33, 0x80};
             char leaseTime[4] = {
