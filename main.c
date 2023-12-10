@@ -23,6 +23,8 @@
 #include <time.h>
 #include "map.h"
 
+#include <signal.h>
+
 // TODO: lista klientów
 // TODO: obsłużyć release i decline
 // TODO: pula adresów
@@ -253,6 +255,31 @@ void addLease(DHCP_Lease lease)
     pthread_mutex_unlock(&leaseMutex);
 }
 
+#ifndef _WIN32
+int mySockFd;
+#else
+SOCKET mySockFd;
+#endif
+pthread_t leasesThread;
+
+static void cleanup()
+{
+    printf("cleanup\n");
+    pthread_join(leasesThread, NULL);
+#ifndef _WIN32
+    close(mySockFd);
+#else
+    closesocket(mySockFd);
+    WSACleanup();
+#endif
+}
+
+void handle_signal(int signum)
+{
+    printf("Received signal %d\n", signum);
+    exit(EXIT_SUCCESS);
+}
+
 int main()
 {
     unsigned char serverIp[4] = {
@@ -291,6 +318,15 @@ int main()
 #endif
         exit(EXIT_FAILURE);
     }
+    mySockFd = sockfd;
+    atexit(cleanup);
+    // signal(SIGINT, exit);
+    // signal(SIGTERM, exit);
+    if (signal(SIGINT, handle_signal) == SIG_ERR)
+    {
+        perror("Unable to set up signal handler");
+        return EXIT_FAILURE;
+    }
 
 #ifndef _WIN32
     int broadcastEnable = 1;
@@ -311,7 +347,6 @@ int main()
     initializeMap(&transactionIDsToMACs);
     // initializeMap(&clients);
 
-    pthread_t leasesThread;
     pthread_create(&leasesThread, NULL, handle_leases, NULL);
 
     while (1)
@@ -866,8 +901,9 @@ int main()
             addLease(lease);
         }
     }
-    pthread_join(leasesThread, NULL);
-    close(sockfd);
+    // pthread_join(leasesThread, NULL);
+    // close(sockfd);
+    cleanup();
 
     return 0;
 }
