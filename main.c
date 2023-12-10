@@ -455,7 +455,7 @@ int main()
             */
 
             // int offset = 0;
-            unsigned char MAC_octets[6];
+            unsigned char* MAC_octets = malloc(6 * sizeof(char));
             for (int i = 0; i < 6; ++i)
             {
                 // sprintf(MAC_octets, "%02x", (unsigned char)buffer[28 + i]);

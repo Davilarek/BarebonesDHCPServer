@@ -60,6 +60,7 @@ void removeByKey(SimpleMap *map, const int key)
                 map->data[j] = map->data[j + 1];
             }
             map->size--;
+            free(map->data[i]->value);
             free(map->data[i]);
             return;
         }
