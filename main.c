@@ -348,6 +348,7 @@ int main()
     // initializeMap(&clients);
 
     pthread_create(&leasesThread, NULL, handle_leases, NULL);
+    printf("running and awaiting connection\nCtrl-C to stop\n");
 
     while (1)
     {
