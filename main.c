@@ -17,9 +17,10 @@
 
 #define PORT 67
 // #define PORT 3000
+#define WEB_UI_CONFIG_UPDATE_PORT 8080
 // #define BUFFER_SIZE 1024
 #define BUFFER_SIZE 600
-#define LEASE_TIME 600
+// #define LEASE_TIME 600
 #include <time.h>
 #include "map.h"
 
@@ -30,6 +31,8 @@
 // TODO: pula adresów
 // TODO: zwalnianie dzierżaw
 
+int LEASE_TIME = 600;
+
 unsigned int generateRandomHex()
 {
     srand((unsigned int)time(NULL));
@@ -39,8 +42,8 @@ unsigned int generateRandomHex()
 // const char *ip_str = "192.168.1.2";
 // const char *serverIp = "192.168.1.1";
 // const unsigned char serverIp[4] = {0xC0, 0xA8, 0x01, 0x01};
-const unsigned char offered_subnet_base[4] = {0xC0, 0xA8, 0x01, 0x00};
-const unsigned char offered_subnet_mask[4] = {0xFF, 0xFF, 0xFF, 0x00};
+unsigned char offered_subnet_base[4] = {0xC0, 0xA8, 0x01, 0x00};
+unsigned char offered_subnet_mask[4] = {0xFF, 0xFF, 0xFF, 0x00};
 
 SimpleMap transactionIDsToMACs;
 
@@ -137,6 +140,7 @@ typedef struct
 DHCP_Lease clients[128];
 int clientsLen = 0;
 pthread_mutex_t leaseMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t configMutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *handle_leases()
 {
@@ -262,11 +266,88 @@ int mySockFd;
 SOCKET mySockFd;
 #endif
 pthread_t leasesThread;
+pthread_t webUiConfigUpdateThread;
+
+void loadConfig();
+
+void *webUiConfigUpdateServer()
+{
+#ifndef _WIN32
+    int sockfd;
+#else
+    SOCKET sockfd;
+    WSADATA wsaData;
+#endif
+    struct sockaddr_in server_addr, client_addr;
+#ifndef _WIN32
+    socklen_t client_addr_len = sizeof(client_addr);
+#else
+    int client_addr_len = sizeof(client_addr);
+#endif
+    char buffer[BUFFER_SIZE];
+
+#ifdef _WIN32
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        perror("Error initializing Winsock");
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+    {
+        perror("Error creating socket");
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(WEB_UI_CONFIG_UPDATE_PORT);
+
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    {
+        perror("Error binding socket");
+        exit(EXIT_FAILURE);
+    }
+
+    while (1)
+    {
+        ssize_t recv_len = recvfrom(sockfd, buffer, 128, 0, (struct sockaddr *)&client_addr, &client_addr_len);
+        if (recv_len == -1)
+        {
+            perror("Error receiving data");
+            exit(EXIT_FAILURE);
+        }
+
+        buffer[recv_len] = '\0';
+        // printf("%s\n", buffer);
+        if (strcmp(buffer, "reload_config") == 0)
+        {
+            printf("got request to reload configuration\n");
+            loadConfig();
+        }
+        // const char *response = {};
+        // if (sendto(sockfd, response, strlen(response), 0, (struct sockaddr *)&client_addr, client_addr_len) == -1)
+        // {
+        //     perror("Error sending response");
+        //     exit(EXIT_FAILURE);
+        // }
+    }
+
+    close(sockfd);
+
+    return NULL;
+}
 
 static void cleanup()
 {
     printf("cleanup\n");
     pthread_join(leasesThread, NULL);
+    pthread_join(webUiConfigUpdateThread, NULL);
 #ifndef _WIN32
     close(mySockFd);
 #else
@@ -281,14 +362,228 @@ void handle_signal(int signum)
     exit(EXIT_SUCCESS);
 }
 
+int occurrencesOfTargetInStr(const char *str, char target)
+{
+    int i, count;
+    for (i = 0, count = 0; str[i]; i++)
+        count += (str[i] == '.');
+    return count;
+}
+
+char *slice(const char *str, int start, int end)
+{
+    int length = strlen(str);
+    start = (start < 0) ? length + start : start;
+    end = (end < 0) ? length + end : end;
+
+    if (start < 0 || start >= length || end < start || end > length)
+    {
+        return NULL;
+    }
+    int sliceLength = end - start;
+
+    char *slicedStr = (char *)malloc((sliceLength + 1) * sizeof(char));
+    strncpy(slicedStr, str + start, sliceLength);
+    slicedStr[sliceLength] = '\0';
+    return slicedStr;
+}
+
+int indexOf(const char *str, char target, int startIndex)
+{
+    int index = -1;
+    for (int i = startIndex; str[i] != '\0'; ++i)
+    {
+        if (str[i] == target)
+        {
+            index = i;
+            break;
+        }
+    }
+    return index;
+}
+
+int str2int(int *out, char *s, int base)
+{
+    char *end;
+    long l = strtol(s, &end, base);
+    if (*end != '\0')
+        return 3;
+    *out = l;
+    return 0;
+}
+unsigned char serverIp[4];
+
+void loadConfig()
+{
+    FILE *filePtr;
+
+    if (filePtr = fopen("config.conf", "r"))
+    {
+        char line[256];
+        while (fgets(line, 256, filePtr))
+        {
+            // printf("%s\n", line);
+            // char **splittedString = malloc(128 * sizeof(char *));
+            // size_t splittedCount;
+            // splitString(line, "=", splittedString, &splittedCount);
+            char *optValS_1 = slice(line, indexOf(line, '=', 0) + 1, strlen(line));
+            char *optVal = slice(optValS_1, 1, strlen(optValS_1) - 2);
+            // sliced2[strlen(sliced2) - 2] = '\0';
+            char *optKey = slice(line, 0, indexOf(line, '=', 0));
+            printf("%s = %s\n", optKey, optVal);
+            // printf("%s:%s\n", splittedString[0], splittedString[1]);
+
+            if (strcmp(optKey, "ipRange") == 0)
+            {
+                char *optVal_RangeS_1 = slice(optVal, 1, indexOf(optVal, ',', 0));
+                // printf("%s\n", optVal_RangeS_1);
+                int optVal_RangeS_2_offset = 0;
+                // printf("%d\n", optVal[indexOf(optVal, ',') + 1]);
+                if (optVal[indexOf(optVal, ',', 0) + 1] == ' ')
+                    optVal_RangeS_2_offset++;
+                char *optVal_RangeS_2 = slice(optVal, indexOf(optVal, ',', 0) + 1 + optVal_RangeS_2_offset, strlen(optVal) - 1);
+                // printf("%s\n", optVal_RangeS_2);
+                int out_1;
+                str2int(&out_1, optVal_RangeS_1, 10);
+                int out_2;
+                str2int(&out_2, optVal_RangeS_2, 10);
+                pthread_mutex_lock(&configMutex);
+                ip_range[0] = out_1 + 0;
+                ip_range[1] = out_2 + 0;
+                pthread_mutex_unlock(&configMutex);
+
+                free(optVal_RangeS_1);
+                free(optVal_RangeS_2);
+            }
+
+            if (strcmp(optKey, "subnetMask") == 0)
+            {
+                int firstOctetIndex = indexOf(optVal, '.', 0);
+                int secondOctetIndex = indexOf(optVal, '.', firstOctetIndex + 1);
+                int thirdOctetIndex = indexOf(optVal, '.', secondOctetIndex + 1);
+                int fourthOctetIndex = strlen(optVal);
+                char *firstOctet = slice(optVal, 0, firstOctetIndex);
+                char *secondOctet = slice(optVal, firstOctetIndex + 1, secondOctetIndex);
+                char *thirdOctet = slice(optVal, secondOctetIndex + 1, thirdOctetIndex);
+                char *fourthOctet = slice(optVal, thirdOctetIndex + 1, fourthOctetIndex);
+                // printf("%s : %s : %s : %s\n", firstOctet, secondOctet, thirdOctet, fourthOctet);
+                int octet1;
+                str2int(&octet1, firstOctet, 10);
+                int octet2;
+                str2int(&octet2, secondOctet, 10);
+                int octet3;
+                str2int(&octet3, thirdOctet, 10);
+                int octet4;
+                str2int(&octet4, fourthOctet, 10);
+
+                pthread_mutex_lock(&configMutex);
+                offered_subnet_mask[0] = octet1 + 0;
+                offered_subnet_mask[1] = octet2 + 0;
+                offered_subnet_mask[2] = octet3 + 0;
+                offered_subnet_mask[3] = octet4 + 0;
+                pthread_mutex_unlock(&configMutex);
+
+                free(firstOctet);
+                free(secondOctet);
+                free(thirdOctet);
+                free(fourthOctet);
+            }
+
+            if (strcmp(optKey, "subnetBase") == 0)
+            {
+                int firstOctetIndex = indexOf(optVal, '.', 0);
+                int secondOctetIndex = indexOf(optVal, '.', firstOctetIndex + 1);
+                int thirdOctetIndex = indexOf(optVal, '.', secondOctetIndex + 1);
+                int fourthOctetIndex = strlen(optVal);
+                char *firstOctet = slice(optVal, 0, firstOctetIndex);
+                char *secondOctet = slice(optVal, firstOctetIndex + 1, secondOctetIndex);
+                char *thirdOctet = slice(optVal, secondOctetIndex + 1, thirdOctetIndex);
+                char *fourthOctet = slice(optVal, thirdOctetIndex + 1, fourthOctetIndex);
+                // printf("%s : %s : %s : %s\n", firstOctet, secondOctet, thirdOctet, fourthOctet);
+                int octet1;
+                str2int(&octet1, firstOctet, 10);
+                int octet2;
+                str2int(&octet2, secondOctet, 10);
+                int octet3;
+                str2int(&octet3, thirdOctet, 10);
+                int octet4;
+                str2int(&octet4, fourthOctet, 10);
+
+                pthread_mutex_lock(&configMutex);
+                offered_subnet_base[0] = octet1 + 0;
+                offered_subnet_base[1] = octet2 + 0;
+                offered_subnet_base[2] = octet3 + 0;
+                offered_subnet_base[3] = octet4 + 0;
+                pthread_mutex_unlock(&configMutex);
+
+                free(firstOctet);
+                free(secondOctet);
+                free(thirdOctet);
+                free(fourthOctet);
+            }
+
+            if (strcmp(optKey, "myIp") == 0)
+            {
+                int firstOctetIndex = indexOf(optVal, '.', 0);
+                int secondOctetIndex = indexOf(optVal, '.', firstOctetIndex + 1);
+                int thirdOctetIndex = indexOf(optVal, '.', secondOctetIndex + 1);
+                int fourthOctetIndex = strlen(optVal);
+                char *firstOctet = slice(optVal, 0, firstOctetIndex);
+                char *secondOctet = slice(optVal, firstOctetIndex + 1, secondOctetIndex);
+                char *thirdOctet = slice(optVal, secondOctetIndex + 1, thirdOctetIndex);
+                char *fourthOctet = slice(optVal, thirdOctetIndex + 1, fourthOctetIndex);
+                // printf("%s : %s : %s : %s\n", firstOctet, secondOctet, thirdOctet, fourthOctet);
+                int octet1;
+                str2int(&octet1, firstOctet, 10);
+                int octet2;
+                str2int(&octet2, secondOctet, 10);
+                int octet3;
+                str2int(&octet3, thirdOctet, 10);
+                int octet4;
+                str2int(&octet4, fourthOctet, 10);
+
+                pthread_mutex_lock(&configMutex);
+                serverIp[0] = octet1 + 0;
+                serverIp[1] = octet2 + 0;
+                serverIp[2] = octet3 + 0;
+                serverIp[3] = octet4 + 0;
+                pthread_mutex_unlock(&configMutex);
+
+                free(firstOctet);
+                free(secondOctet);
+                free(thirdOctet);
+                free(fourthOctet);
+            }
+
+            if (strcmp(optKey, "leaseTime") == 0)
+            {
+                int out_1;
+                str2int(&out_1, optVal, 10);
+                pthread_mutex_lock(&configMutex);
+                LEASE_TIME = out_1;
+                pthread_mutex_unlock(&configMutex);
+            }
+
+            free(optValS_1);
+            free(optVal);
+            free(optKey);
+        }
+        fclose(filePtr);
+    }
+}
+
 int main()
 {
-    unsigned char serverIp[4] = {
-        offered_subnet_base[0],
-        offered_subnet_base[1],
-        offered_subnet_base[2],
-        0x01,
-    };
+    // unsigned char serverIp[4] = {
+    //     offered_subnet_base[0],
+    //     offered_subnet_base[1],
+    //     offered_subnet_base[2],
+    //     0x01,
+    // };
+    serverIp[0] = offered_subnet_base[0];
+    serverIp[1] = offered_subnet_base[1];
+    serverIp[2] = offered_subnet_base[2];
+    serverIp[3] = 0x01;
 #ifndef _WIN32
     int sockfd;
 #else
@@ -329,6 +624,8 @@ int main()
         return EXIT_FAILURE;
     }
 
+    loadConfig();
+
 #ifndef _WIN32
     int broadcastEnable = 1;
     int ret = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable));
@@ -349,7 +646,8 @@ int main()
     // initializeMap(&clients);
 
     pthread_create(&leasesThread, NULL, handle_leases, NULL);
-    printf("running and awaiting connection\nCtrl-C to stop\n");
+    pthread_create(&webUiConfigUpdateThread, NULL, webUiConfigUpdateServer, NULL);
+    printf("running and awaiting connection\nCtrl-C to stop\nconfig update trigger set at %d\n", WEB_UI_CONFIG_UPDATE_PORT);
 
     while (1)
     {
