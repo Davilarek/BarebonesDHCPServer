@@ -4,3 +4,4 @@ main
 main.exe
 breakpoints.txt
 .vscode
+config.conf_*.bck
