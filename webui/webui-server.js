@@ -12,15 +12,17 @@ const message = 'reload_config';
 
 const buffer = Buffer.from(message);
 
-function sendReloadConfigRequest() {
+function sendReloadConfigRequest(cb) {
     client.send(buffer, 0, buffer.length, settings.configReloadTriggerPort, serverHost, (err) => {
         if (err) {
             console.error(`Error sending message: ${err}`);
-            client.close();
+            cb(JSON.stringify(err, Object.getOwnPropertyNames(err)));
+            // client.close();
         }
         else {
             console.log(`Message sent to ${serverHost}:${settings.configReloadTriggerPort}`);
-            client.close();
+            cb();
+            // client.close();
         }
     });
 
@@ -59,12 +61,12 @@ const server = http.createServer((req, res) => {
                 if (fs.existsSync(settings.pathToDHCPServerConfig))
                     fs.renameSync(settings.pathToDHCPServerConfig, path.dirname(settings.pathToDHCPServerConfig) + `/config.conf_${Date.now()}.bck`);
                 fs.writeFileSync(settings.pathToDHCPServerConfig, lines.join("\n"));
-                sendReloadConfigRequest();
+                sendReloadConfigRequest((err) => err ? (res.writeHead(500) || res.end(err)) : res.end());
             }
             catch (error) {
                 res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end(JSON.stringify(error, Object.getOwnPropertyNames(error)));
             }
-            res.end();
         });
         return;
     }

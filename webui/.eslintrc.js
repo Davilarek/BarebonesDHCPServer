@@ -5,6 +5,15 @@ module.exports = {
 		"commonjs": true,
 		"es6": true,
 	},
+	"overrides": [
+		{
+			"files": ["./public/*.js"],
+			"env": {
+				"browser": true,
+				"node": false,
+			},
+		},
+	],
 	"extends": "eslint:recommended",
 	"parserOptions": {
 		"ecmaVersion": 2021,
