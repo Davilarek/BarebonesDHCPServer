@@ -8,11 +8,9 @@ const client = dgram.createSocket('udp4');
 
 const serverHost = '127.0.0.1';
 
-const message = 'reload_config';
-
-const buffer = Buffer.from(message);
-
 function sendReloadConfigRequest(cb) {
+    const message = 'reload_config';
+    const buffer = Buffer.from(message);
     client.send(buffer, 0, buffer.length, settings.configReloadTriggerPort, serverHost, (err) => {
         if (err) {
             console.error(`Error sending message: ${err}`);
@@ -25,9 +23,27 @@ function sendReloadConfigRequest(cb) {
             // client.close();
         }
     });
+}
 
-    client.on('message', (msg, rinfo) => {
-        console.log(`Received message from server: ${msg} (from ${rinfo.address}:${rinfo.port})`);
+function sendLeaseListRequest(cb) {
+    const message = 'send_leases';
+    const buffer = Buffer.from(message);
+    client.send(buffer, 0, buffer.length, settings.configReloadTriggerPort, serverHost, (err) => {
+        if (err) {
+            console.error(`Error sending message: ${err}`);
+            cb(undefined, JSON.stringify(err, Object.getOwnPropertyNames(err)));
+            // client.close();
+        }
+        else {
+            console.log(`Message sent to ${serverHost}:${settings.configReloadTriggerPort}`);
+            // client.close();
+        }
+    });
+
+    // eslint-disable-next-line no-unused-vars
+    client.once('message', (msg, rinfo) => {
+        if (String.fromCharCode(msg[0]) == "x")
+            cb(msg, undefined);
     });
 }
 
@@ -68,6 +84,10 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify(error, Object.getOwnPropertyNames(error)));
             }
         });
+        return;
+    }
+    if (pathname == "/getLeases" && req.method == "GET") {
+        sendLeaseListRequest((err, buff) => res.end(err ? err : buff));
         return;
     }
     const filePath = path.join(__dirname, 'public', pathname);

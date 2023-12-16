@@ -20,6 +20,7 @@
 #define WEB_UI_CONFIG_UPDATE_PORT 8080
 // #define BUFFER_SIZE 1024
 #define BUFFER_SIZE 600
+#define MAX_LEASES 512
 // #define LEASE_TIME 600
 #include <time.h>
 #include "map.h"
@@ -137,7 +138,7 @@ typedef struct
     char *hostName;
 } DHCP_Lease;
 
-DHCP_Lease clients[128];
+DHCP_Lease clients[MAX_LEASES];
 int clientsLen = 0;
 pthread_mutex_t leaseMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t configMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -329,6 +330,61 @@ void *webUiConfigUpdateServer()
         {
             printf("got request to reload configuration\n");
             loadConfig();
+        }
+        if (strcmp(buffer, "send_leases") == 0)
+        {
+            char response[512];
+            int offs = 0;
+            for (size_t i = 0; i < clientsLen; i++)
+            {
+                DHCP_Lease lease = clients[i];
+                response[offs] = 'x';
+                offs++;
+                response[offs] = ',';
+                offs++;
+                response[offs] = lease.duration;
+                offs++;
+                // response[offs] = lease.start;
+                // offs++;
+                response[offs] = ',';
+                offs++;
+                char longAsCharArr[24]; // uh how much here?
+                int longAsCharArrLen = sprintf(longAsCharArr, "%ld", lease.start);
+                for (size_t j = 0; j < longAsCharArrLen; j++)
+                {
+                    response[offs] = longAsCharArr[j];
+                    offs++;
+                }
+                response[offs] = ',';
+                offs++;
+                for (size_t j = 0; j < 4; j++)
+                {
+                    response[offs] = lease.IP_addr[j];
+                    offs++;
+                }
+                response[offs] = ',';
+                offs++;
+                for (size_t j = 0; j < 6; j++)
+                {
+                    response[offs] = lease.MAC_addr[j];
+                    offs++;
+                }
+                response[offs] = ',';
+                offs++;
+                for (size_t j = 0; j < strlen(lease.hostName); j++)
+                {
+                    response[offs] = lease.hostName[j];
+                    offs++;
+                }
+                response[offs] = '\n';
+                offs++;
+            }
+
+            if (sendto(sockfd, response, 512, 0, (struct sockaddr *)&client_addr, client_addr_len) == -1)
+            {
+                perror("Error sending response");
+                exit(EXIT_FAILURE);
+            }
         }
         // const char *response = {};
         // if (sendto(sockfd, response, strlen(response), 0, (struct sockaddr *)&client_addr, client_addr_len) == -1)
