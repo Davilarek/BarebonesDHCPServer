@@ -56,6 +56,7 @@ function appendOption(name, type, values = [], placeholder = "", id, onchange) {
             const arrayBase = document.createElement("div");
             arrayBase.id = "opt-" + name;
             const arrayNewElementButton = document.createElement("button");
+            arrayNewElementButton.style.marginBottom = "10px";
             arrayNewElementButton.textContent = "+ New";
             arrayNewElementButton.addEventListener("click", (ev) => {
                 /**
