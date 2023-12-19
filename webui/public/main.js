@@ -201,7 +201,21 @@ function appendTableData(tableBody, valuesArray) {
     }
 }
 refreshLeaseList.addEventListener("click", () => {
-    fetch("./getLeases").then(async x => {
+    const controller = new AbortController();
+    const loadingCanvas = refreshLeaseList.parentElement.getElementsByTagName("canvas")[0];
+    const loadingContext = loadingCanvas.getContext('2d');
+
+    loadingCanvas.style.display = 'inline-block';
+    animateLoading(loadingContext);
+
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+        loadingCanvas.style.display = 'none';
+        loadingContext.clearRect(0, 0, loadingCanvas.width, loadingCanvas.height);
+        appendToConsole("Timed out, is the server running?", "red");
+    }, 5000);
+    fetch("./getLeases", { signal: controller.signal }).then(async x => {
+        clearTimeout(timeoutId);
         const raw = await x.arrayBuffer();
         const rawUint8 = new Uint8Array(raw);
         if (String.fromCharCode(rawUint8[0]) != "x")
@@ -279,5 +293,8 @@ refreshLeaseList.addEventListener("click", () => {
         final_.forEach(x2 => delete x2.startIndx);
         Array.from(leasesTableBody.children).filter(x2 => x2.remove());
         appendTableData(leasesTableBody, final_);
+
+        loadingCanvas.style.display = 'none';
+        loadingContext.clearRect(0, 0, loadingCanvas.width, loadingCanvas.height);
     });
 });
