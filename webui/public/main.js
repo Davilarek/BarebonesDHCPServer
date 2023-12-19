@@ -1,6 +1,8 @@
 const applyButton = document.getElementById("applyButton");
+const leasesTable = document.getElementsByClassName("leases-table")[0];
+const refreshLeaseList = document.getElementById("refreshLeaseList");
 applyButton.addEventListener("click", () => {
-    const loadingCanvas = document.getElementById('loading');
+    const loadingCanvas = applyButton.parentElement.getElementsByTagName("canvas")[0];
     const loadingContext = loadingCanvas.getContext('2d');
 
     loadingCanvas.style.display = 'inline-block';
@@ -171,4 +173,101 @@ appendOption("Lease time", "input", undefined, "Enter time for lease expiration,
     else {
         inputElement.classList.add('invalid-input');
     }
+});
+const leasesTableBody = leasesTable.getElementsByTagName("tbody")[0];
+function appendTableData(tableBody, valuesArray) {
+    for (let index = 0; index < valuesArray.length; index++) {
+        const obj = valuesArray[index];
+        const tableRow = document.createElement("tr");
+        const valuesKeys = Object.keys(obj);
+        for (let index2 = 0; index2 < valuesKeys.length; index2++) {
+            const keyEl = valuesKeys[index2];
+            const tableData = document.createElement("td");
+            tableData.textContent = obj[keyEl];
+            tableData.setAttribute("val", keyEl);
+            tableRow.appendChild(tableData);
+        }
+        tableBody.appendChild(tableRow);
+    }
+}
+refreshLeaseList.addEventListener("click", () => {
+    fetch("./getLeases").then(async x => {
+        const raw = await x.arrayBuffer();
+        const rawUint8 = new Uint8Array(raw);
+        if (String.fromCharCode(rawUint8[0]) != "x")
+            return;
+        const final_ = [{
+            ipAddress: "",
+            macAddress: "",
+            startTimestamp: "",
+            duration: "",
+            hostName: "",
+            startIndx: -1,
+        }];
+        final_.length = rawUint8.filter(x2 => x2 == "\n".charCodeAt(0)).length;
+        for (let index = 0; index < final_.length; index++) {
+            if (final_.length - 1 != index)
+                final_[index + 1] = Object.assign({}, final_[index]);
+        }
+        let commaOffset = 0;
+        let current = 0;
+        const t = new TextDecoder();
+        for (let index = 0; index < rawUint8.length; index++) {
+            const final = final_[current];
+            if (final == undefined)
+                break;
+            const element = rawUint8[index];
+            const asChar = String.fromCharCode(element);
+            if (commaOffset == 0 && asChar == "x") {
+                final.startIndx = index;
+                index += 1;
+                continue;
+            }
+            // duration
+            if (commaOffset == 0 && final.startIndx != -1) {
+                final.duration = rawUint8.filter((v, i) => i >= index && i < rawUint8.indexOf(",".charCodeAt(0), index + 1)).map(x2 => String.fromCharCode(x2)).join("");
+                commaOffset++;
+                index += 2;
+                continue;
+            }
+            // start time
+            if (commaOffset == 1 && final.duration != "") {
+                final.startTimestamp = rawUint8.filter((v, i) => i >= index && i < rawUint8.indexOf(",".charCodeAt(0), index + 1)).map(x2 => String.fromCharCode(x2)).join("");
+                commaOffset++;
+                index += 11;
+                continue;
+            }
+            // ip addr
+            if (commaOffset == 2 && final.startTimestamp != "") {
+                final.ipAddress = `${rawUint8[index]}.${rawUint8[index + 1]}.${rawUint8[index + 2]}.${rawUint8[index + 3]}`;
+                commaOffset++;
+                index += 4;
+                continue;
+            }
+            // mac addr
+            if (commaOffset == 3 && final.ipAddress != "") {
+                final.macAddress = `${rawUint8[index]}:${rawUint8[index + 1]}:${rawUint8[index + 2]}:${rawUint8[index + 3]}:${rawUint8[index + 4]}:${rawUint8[index + 5]}`.split(":").map(x2 => parseInt(x2).toString(16)).join(":");
+                commaOffset++;
+                index += 6;
+                continue;
+            }
+            // host name
+            if (commaOffset == 4 && final.macAddress != "") {
+                // final.hostName = rawUint8.filter((v, i) => i >= index && i < rawUint8.indexOf("\n".charCodeAt(0))).map(x2 => String.fromCharCode(x2)).join("");
+                final.hostName = t.decode(rawUint8.filter((v, i) => i >= index && i < rawUint8.indexOf("\n".charCodeAt(0), final.startIndx)));
+                commaOffset++;
+                // index +=;
+                continue;
+            }
+            if (asChar == "\n") {
+                current++;
+                commaOffset = 0;
+            }
+        }
+        console.log(final_);
+        final_.forEach(x2 => x2.startTimestamp = Number.parseInt(x2.startTimestamp));
+        final_.forEach(x2 => delete x2.startIndx);
+        Array.from(leasesTableBody.children).filter(x2 => x2.remove());
+        appendTableData(leasesTableBody, final_);
+    });
 });

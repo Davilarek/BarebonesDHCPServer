@@ -55,10 +55,10 @@
         .loading-container {
             position: relative;
             display: inline-block;
-            margin-left: 10px;
+            /* margin-left: 10px; */
         }
 
-        #loading {
+        .loading {
             display: none;
             position: absolute;
             top: 50%;
@@ -81,6 +81,50 @@
             background-color: #ffcccc;
         }
 
+        .leases-table {
+            background-color: #2b2b2b;
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .leases-table table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .leases-table th,
+        .leases-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #555555;
+
+            border-right: 1px solid #555555;
+        }
+
+        .leases-table thead th {
+            background-color: #1f1f1f;
+            color: #ffffff;
+
+            border-top: 1px solid #555555;
+        }
+
+        /**
+         * gives a cool effect, every second element the color is a little darker
+         */
+        .leases-table tbody tr:nth-child(even) {
+            background-color: #333333;
+        }
+
+        .leases-table tbody tr:hover {
+            background-color: #444444;
+        }
+
+        .leases-table th:last-child,
+        .leases-table td:last-child {
+            border-right: none;
+        }
+
         @media only screen and (max-width: 600px) {
 
             input,
@@ -97,10 +141,27 @@
         DHCP Server Config GUI
     </header>
     <section>
+        <section class="leases-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Assigned IP</th>
+                        <th>MAC</th>
+                        <th>Lease added</th>
+                        <th>Lease expires in</th>
+                        <th>Hostname</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+            <button id="refreshLeaseList">Refresh</button>
+        </section>
         <span id="containerForInputs"></span>
         <div class="loading-container">
             <button id="applyButton" type="button">Apply Changes</button>
-            <canvas id="loading" width="20" height="20"></canvas>
+            <canvas class="loading" width="20" height="20"></canvas>
         </div>
         <div id="console"></div>
         <script src="./main.js"></script>
