@@ -342,8 +342,15 @@ void *webUiConfigUpdateServer()
                 offs++;
                 response[offs] = ',';
                 offs++;
-                response[offs] = lease.duration;
-                offs++;
+                // response[offs] = lease.duration;
+                // offs++;
+                char durationAsCharArr[24]; // uh how much here?
+                int durationAsCharArrLen = sprintf(durationAsCharArr, "%d", lease.duration);
+                for (size_t j = 0; j < durationAsCharArrLen; j++)
+                {
+                    response[offs] = durationAsCharArr[j];
+                    offs++;
+                }
                 // response[offs] = lease.start;
                 // offs++;
                 response[offs] = ',';
