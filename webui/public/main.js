@@ -162,7 +162,17 @@ function collectOptions() {
     return final;
 }
 appendOption("IP Range", "array", undefined, undefined, "ipRange");
-appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal notation.", "subnetMask", validateIpAddress);
+appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal notation or CIDR notation.", "subnetMask", (event) => {
+    const inputElement = event.target;
+    const ipAddress = inputElement.value;
+
+    if (isValidIpv4Addr(ipAddress) || ipAddress == "" || (ipAddress.length == 3 && (/^\d+$/.test(inputElement.value.slice(1))))) {
+        inputElement.classList.remove('invalid-input');
+    }
+    else {
+        inputElement.classList.add('invalid-input');
+    }
+});
 appendOption("Subnet base", "input", undefined, "Enter a valid dotted-decimal notation.", "subnetBase", validateIpAddress);
 appendOption("My IP", "input", undefined, "Enter a valid dotted-decimal notation.", "myIp", validateIpAddress);
 appendOption("Lease time", "input", undefined, "Enter time for lease expiration, in seconds.", "leaseTime", (event) => {
