@@ -232,6 +232,7 @@ appendOption("Lease time", "input", undefined, "Enter time for lease expiration,
         inputElement.classList.add('invalid-input');
     }
 });
+appendOption("Default Gateway", "input", undefined, "Enter a valid dotted-decimal notation.", "gatewayIp", validateIpAddress);
 const leasesTableBody = leasesTable.getElementsByTagName("tbody")[0];
 function appendTableData(tableBody, valuesArray) {
     for (let index = 0; index < valuesArray.length; index++) {

@@ -80,6 +80,7 @@ enum DHCP_Options
     SubnetMask = 1,
     ServerID = 54,
     IPAdressLeaseTime = 51,
+    Router = 3,
 };
 
 enum DHCP_MessageTypes
@@ -475,6 +476,7 @@ int str2int(int *out, char *s, int base)
     return 0;
 }
 unsigned char serverIp[4];
+unsigned char gatewayIp[4];
 
 void loadConfig()
 {
@@ -610,6 +612,39 @@ void loadConfig()
                 serverIp[1] = octet2 + 0;
                 serverIp[2] = octet3 + 0;
                 serverIp[3] = octet4 + 0;
+                pthread_mutex_unlock(&configMutex);
+
+                free(firstOctet);
+                free(secondOctet);
+                free(thirdOctet);
+                free(fourthOctet);
+            }
+
+            if (strcmp(optKey, "gatewayIp") == 0)
+            {
+                int firstOctetIndex = indexOf(optVal, '.', 0);
+                int secondOctetIndex = indexOf(optVal, '.', firstOctetIndex + 1);
+                int thirdOctetIndex = indexOf(optVal, '.', secondOctetIndex + 1);
+                int fourthOctetIndex = strlen(optVal);
+                char *firstOctet = slice(optVal, 0, firstOctetIndex);
+                char *secondOctet = slice(optVal, firstOctetIndex + 1, secondOctetIndex);
+                char *thirdOctet = slice(optVal, secondOctetIndex + 1, thirdOctetIndex);
+                char *fourthOctet = slice(optVal, thirdOctetIndex + 1, fourthOctetIndex);
+                // printf("%s : %s : %s : %s\n", firstOctet, secondOctet, thirdOctet, fourthOctet);
+                int octet1;
+                str2int(&octet1, firstOctet, 10);
+                int octet2;
+                str2int(&octet2, secondOctet, 10);
+                int octet3;
+                str2int(&octet3, thirdOctet, 10);
+                int octet4;
+                str2int(&octet4, fourthOctet, 10);
+
+                pthread_mutex_lock(&configMutex);
+                gatewayIp[0] = octet1 + 0;
+                gatewayIp[1] = octet2 + 0;
+                gatewayIp[2] = octet3 + 0;
+                gatewayIp[3] = octet4 + 0;
                 pthread_mutex_unlock(&configMutex);
 
                 free(firstOctet);
@@ -1073,7 +1108,8 @@ int main()
                 LEASE_TIME & 0xFF,
             };
             int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
-            int finalEnd = leaseTimeEnd;
+            int gatewayEnd = addOption(responseBuffer, leaseTimeEnd, Router, gatewayIp, 4);
+            int finalEnd = gatewayEnd;
 
             // responseBuffer[243] = End; // koniec odpowiedzi
             // responseBuffer[249] = End; // koniec odpowiedzi
@@ -1217,7 +1253,8 @@ int main()
                 LEASE_TIME & 0xFF,
             };
             int leaseTimeEnd = addOption(responseBuffer, serverIdEnd, IPAdressLeaseTime, leaseTime, 4);
-            int finalEnd = leaseTimeEnd;
+            int gatewayEnd = addOption(responseBuffer, leaseTimeEnd, Router, gatewayIp, 4);
+            int finalEnd = gatewayEnd;
 
             responseBuffer[finalEnd] = End; // koniec odpowiedzi
 
