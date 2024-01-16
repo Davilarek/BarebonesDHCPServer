@@ -200,7 +200,8 @@ function cidr2dotDec(val) {
             .reduce((rst) => (rst * 2 + (val-- > 0)), 0))
         .join('.');
 }
-appendOption("IP Range", "array", undefined, undefined, "ipRange");
+appendOption("My IP", "input", undefined, "Enter a valid dotted-decimal notation.", "myIp", validateIpAddress);
+appendOption("Subnet base", "input", undefined, "Enter a valid dotted-decimal notation.", "subnetBase", validateIpAddress);
 appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal notation or CIDR notation.", "subnetMask", {
     "change": (event) => {
         const inputElement = event.target;
@@ -221,8 +222,7 @@ appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal no
         }
     },
 });
-appendOption("Subnet base", "input", undefined, "Enter a valid dotted-decimal notation.", "subnetBase", validateIpAddress);
-appendOption("My IP", "input", undefined, "Enter a valid dotted-decimal notation.", "myIp", validateIpAddress);
+appendOption("IP Range", "array", undefined, undefined, "ipRange");
 appendOption("Lease time", "input", undefined, "Enter time for lease expiration, in seconds.", "leaseTime", (event) => {
     const inputElement = event.target;
     if ((/^\d+$/.test(inputElement.value) && parseInt(inputElement.value) <= 31536000) || inputElement.value == "") {
