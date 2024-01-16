@@ -86,6 +86,11 @@ const server = http.createServer((req, res) => {
         });
         return;
     }
+    if (pathname == "/getConfig" && req.method === "GET") {
+        const read = fs.createReadStream(settings.pathToDHCPServerConfig);
+        read.pipe(res);
+        return;
+    }
     if (pathname == "/getLeases" && req.method == "GET") {
         sendLeaseListRequest((err, buff) => res.end(err ? err : buff));
         return;

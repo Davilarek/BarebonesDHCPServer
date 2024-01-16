@@ -69,6 +69,7 @@ function appendOption(name, type, values = [], placeholder = "", id, onchange = 
             const arrayNewElementButton = document.createElement("button");
             arrayNewElementButton.style.marginBottom = "10px";
             arrayNewElementButton.textContent = "+ New";
+            arrayNewElementButton.className = "newElementButton";
             arrayNewElementButton.addEventListener("click", (ev) => {
                 /**
                  * @type {typeof arrayNewElementButton}
@@ -169,6 +170,29 @@ function collectOptions() {
         }
     }
     return final;
+}
+function applyOptions(options) {
+    for (const key in options) {
+        if (Object.prototype.hasOwnProperty.call(options, key)) {
+            const value = options[key];
+            const element = document.getElementById("opt-id_" + key);
+            const actualValueElement = element.children[1];
+
+            if (actualValueElement instanceof HTMLInputElement) {
+                actualValueElement.value = value;
+            }
+            else if (actualValueElement instanceof HTMLSelectElement) {
+                actualValueElement.selectedIndex = value;
+            }
+            else if (actualValueElement instanceof HTMLDivElement) {
+                for (let index = 0; index < value.length; index++) {
+                    actualValueElement.getElementsByClassName("newElementButton")[0].click();
+                    const element2 = actualValueElement.children[index];
+                    element2.children[0].value = value[index];
+                }
+            }
+        }
+    }
 }
 function cidr2dotDec(val) {
     return [255, 255, 255, 255]
@@ -321,4 +345,25 @@ refreshLeaseList.addEventListener("click", () => {
         loadingCanvas.style.display = 'none';
         loadingContext.clearRect(0, 0, loadingCanvas.width, loadingCanvas.height);
     });
+});
+/**
+ * @param {string} opt
+ */
+const parseOption = (opt, out) => {
+    const optVal = opt.slice(opt.indexOf("=") + 1).slice(1).slice(0, -1);
+    let arrayValue = false;
+    if (optVal.startsWith("[") && optVal.endsWith("]"))
+        arrayValue = true;
+    const optKey = opt.split("=")[0];
+    out[optKey] = arrayValue ? JSON.parse(optVal) : optVal;
+};
+fetch("/getConfig").then(x => x.text()).then(x => {
+    const settingsSplit = x.split("\n");
+    const final = {};
+    for (let i = 0; i < settingsSplit.length; i++) {
+        const element = settingsSplit[i];
+        if (element.includes("=\""))
+            parseOption(element, final);
+    }
+    applyOptions(final);
 });
