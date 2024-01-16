@@ -23,7 +23,11 @@ applyButton.addEventListener("click", () => {
 function isValidIpv4Addr(ip) {
     return /^(?=\d+\.\d+\.\d+\.\d+$)(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])\.?){4}$/.test(ip);
 }
-function appendOption(name, type, values = [], placeholder = "", id, onchange) {
+function appendOption(name, type, values = [], placeholder = "", id, onchange = { "change": () => undefined }) {
+    if (typeof onchange === "function")
+        onchange = {
+            "change": onchange,
+        };
     const containerForInputs = document.getElementById("containerForInputs");
     const label = document.createElement("label");
     label.for = "opt-" + name;
@@ -35,7 +39,12 @@ function appendOption(name, type, values = [], placeholder = "", id, onchange) {
             input.name = "opt-" + name;
             input.id = "opt-" + name;
             input.placeholder = placeholder;
-            input.addEventListener('input', onchange);
+            // input.addEventListener("focusout", onchange.focusout);
+            // input.addEventListener('input', onchange.change);
+            delete Object.assign(onchange, { ["input"]: onchange["change"] })["change"];
+            for (const eventName in onchange) {
+                input.addEventListener(eventName, onchange[eventName]);
+            }
             outNodes.push(input);
             break;
         }
@@ -50,7 +59,7 @@ function appendOption(name, type, values = [], placeholder = "", id, onchange) {
                 option.textContent = element.textContent;
                 select.appendChild(option);
             }
-            select.addEventListener('change', onchange);
+            select.addEventListener('change', onchange.change);
             outNodes.push(select);
             break;
         }
@@ -161,17 +170,32 @@ function collectOptions() {
     }
     return final;
 }
+function cidr2dotDec(val) {
+    return [255, 255, 255, 255]
+        .map(() => [...Array(8).keys()]
+            .reduce((rst) => (rst * 2 + (val-- > 0)), 0))
+        .join('.');
+}
 appendOption("IP Range", "array", undefined, undefined, "ipRange");
-appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal notation or CIDR notation.", "subnetMask", (event) => {
-    const inputElement = event.target;
-    const ipAddress = inputElement.value;
+appendOption("Subnet mask", "input", undefined, "Enter a valid dotted-decimal notation or CIDR notation.", "subnetMask", {
+    "change": (event) => {
+        const inputElement = event.target;
+        const ipAddress = inputElement.value;
 
-    if (isValidIpv4Addr(ipAddress) || ipAddress == "" || (ipAddress.length == 3 && (/^\d+$/.test(inputElement.value.slice(1))))) {
-        inputElement.classList.remove('invalid-input');
-    }
-    else {
-        inputElement.classList.add('invalid-input');
-    }
+        if (isValidIpv4Addr(ipAddress) || ipAddress == "" || (ipAddress.length == 3 && (/^\d+$/.test(inputElement.value.slice(1))))) {
+            inputElement.classList.remove('invalid-input');
+        }
+        else {
+            inputElement.classList.add('invalid-input');
+        }
+    },
+    "focusout": (event) => {
+        const inputElement = event.target;
+        const ipAddress = inputElement.value;
+        if (ipAddress.startsWith("/")) {
+            inputElement.value = cidr2dotDec(parseInt(ipAddress.split("/")[1]));
+        }
+    },
 });
 appendOption("Subnet base", "input", undefined, "Enter a valid dotted-decimal notation.", "subnetBase", validateIpAddress);
 appendOption("My IP", "input", undefined, "Enter a valid dotted-decimal notation.", "myIp", validateIpAddress);
